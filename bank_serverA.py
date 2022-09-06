@@ -80,18 +80,36 @@ class BankServer:
         return True
 
     # This encrypts the message with the gateways public key
-    def encryptMessage():
-        None
+    def encryptMessage(self, msg):
+        cipher = ""
+        gateway_encrypt = 666192648131279
+        gateway_N = 747992601946009934875593562007
+
+        for c in msg:
+            m = ord(c)
+            cipher += str(pow(m, gateway_encrypt, gateway_N)) + " "
+
+        return cipher
         # Basically encrypts the message with the banks public key
 
-    def decryptMessage():
-        None
+    def decryptMessage(cipher):
+        msg = ""
+        bankA_private = 147276700497160985403069405313 
+        bankA_N = 403246574997455042743991405701 
+
+        parts = cipher.split()
+        for part in parts:
+            if part:
+                c = int(part)
+                msg += chr(pow(c, bankA_private, bankA_N))
+
+        return msg
         # Basically decrypts the message recieved with it's own private key
 
     # This is sends data to the gateway
     def sendToGateway(self, message):
         bank2gate_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        bank2gate_socket.connect(("192.168.0.22", 8086))
+        bank2gate_socket.connect(("192.168.0.100", 8086))
         print("connected")
 
         data = message.encode()
@@ -123,7 +141,7 @@ class BankServer:
             else:
                 return False
         '''
-        if card_no == "4539812769419581" and cvv == "434" and expiry == "1223":
+        if card_no == "4554402769419581" and cvv == "434" and expiry == "1223":
             return True
         else:
             return False
@@ -196,7 +214,7 @@ class BankServer:
             contact_no = i
         '''
         otp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        otp_socket.connect(("192.168.0.22", 8084))
+        otp_socket.connect(("192.168.0.100", 8084))
 
         sent_OTP = str(random.randint(100000, 999999))
         data = sent_OTP.encode()
@@ -232,20 +250,74 @@ class BankServer:
     # The following 2 functions use the same code, make it a little more effiecient to differentiate. They send (dis)approval messages.
     def sendApproval(self, message, port_no):
         #encrypted_message = encryptMessage(message)
+        new_message = "1" + str(message[1:])
+        data = new_message.encode()
+        if port_no == 8081:
+            client2bank_connection_socket.send(data)
+        elif port_no == 8082:
+            gateway_socket.send(data)
+        print("Sent approval")
+    
+    def sendDisapproval(self, message, port_no):
+        #encrypted_message = encryptMessage(message)
+        new_message = "0" + str(message[1:])
         data = message.encode()
         if port_no == 8081:
             client2bank_connection_socket.send(data)
         elif port_no == 8082:
             gateway_socket.send(data)
     
-    def sendDisapproval(self, message, port_no):
-        #encrypted_message = encryptMessage(message)
-        data = message.encode()
-        if port_no == 8081:
-            client2bank_connection_socket.send(data)
-        elif port_no == 8082:
-            gateway_socket.send(data)
+    def checkAuthorisedPayments(self):
+        '''
+        hashed_data = self.hashed_data
+        cursor.execute(  # HASHED_DATA IS A VARIABLE WE WILL INSERT IN THE QUERY, 
+            """
+            SELECT Hash
+            FROM Authorised_Payments
+            WHERE Hash = 'HASHED_DATA'
+            """
+        )
+        for i in cursor:
+            return True
+        else:
+            return False
+        '''
+        print("Payment exists")
+        return True
+    
+    def transferHoldToVisa(self):
+        '''
+        cursor.execute(
+            """
+            
+            """
+        )
+        '''
+        print("Funds in hold transferred to Visa Reserve")
+        return True
 
+    def transferVisaToMerchant(self):
+        '''
+        cursor.execute(
+            """
+            
+            """
+        )
+        '''
+        print("Funds in Visa Reserve transferred to Merchant Acc")
+        return True
+    
+    # Funds transferred directly from customer to merchant account if they're in the same bank
+    def directFundTransfer(self):
+        '''
+        cursor.execute(
+            """
+            
+            """
+        )
+        '''
+        print("Funds in Client Acc DIRECTLY transferred to Merchant Acc")
+        return True
 
 # This is the main part of the code
 if __name__ == "__main__":
@@ -253,16 +325,16 @@ if __name__ == "__main__":
     print("This is the bank server")
     # The socket for client to bank
     client2bank_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client2bank_socket.bind(("192.168.0.22", 8081))
+    client2bank_socket.bind(("192.168.0.100", 8081))
     client2bank_socket.listen()
     print("Waiting for client socket...")
     client2bank_connection_socket, address = client2bank_socket.accept()
     print("Client connected")
-    client_data = client2bank_connection_socket.recv(750).decode()
+    client_data = client2bank_connection_socket.recv(30000).decode()
     
     # This is the socket for bank to gateway
     gateway_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    gateway_socket.connect(("192.168.0.22", 8082))
+    gateway_socket.connect(("192.168.0.100", 8082))
     print("Gateway connected")
     #gateway_data = gateway_socket.recv(750)
     #gateway_message = gateway_data.decode()
@@ -296,8 +368,9 @@ if __name__ == "__main__":
     # The message recieved is passed through this function which is used for recursion.
     def main(client_data):
         # The message is taken in as a paremeter by the BankServer class and
-        client_data = client_data
-        Bank = BankServer(client_data)
+        decrypted_data = BankServer.decryptMessage(client_data)
+        Bank = BankServer(decrypted_data)
+        print(decrypted_data)
         message_type = BankServer.getMessageType(Bank)
         print(message_type)
         issuing_bank = BankServer.getIssuingBank(Bank)
@@ -309,18 +382,36 @@ if __name__ == "__main__":
         # If the message type is 1, then an approval message is sent. Needs edits. 
         if message_type == "1":
             print("Sending approval message....")
-            # Figure out a way to decide where to send approval messages to via databases
-            #if issuing_bank == merchant_bank:
-            #    Bank.sendApproval(decrypted_message, 8081)
-            Bank.sendApproval(client_data, 8081)
+            encrypted_message = Bank.encryptMessage(decrypted_data)
+            Bank.sendApproval(encrypted_message, 8081)
+            print("sent approval")
+            print("Waiting for gateway to send message: ")
+        #try:
+            message = gateway_socket.recv(30000).decode()
+            print("message:", message)
+            decrypted_message = Bank.decryptMessage(message)
+            print("Recieved response from gateway:", decrypted_message)
+            main(message)
+        #except:
+            print("No message recieved")
+            
         
         elif message_type == "0":
             print("Sending dissaproval message....")
             # Figure out a way to decide where to send approval messages to via databases
             #if issuing_bank == merchant_bank:
             #    Bank.sendDisapproval(decrypted_message, 8081)
-            Bank.sendDisapproval(client_data, 80881)
-            print("Sent:", client_data)
+            encrypted_message = Bank.encryptMessage(decrypted_data)
+            Bank.sendDisapproval(encrypted_message, 8081)
+            print("Sent disapproval")
+            print("Waiting for gateway to send message: ")
+            try:
+                message = gateway_socket.recv(30000).decode()
+                decrypted_message = Bank.decryptMessage(message)
+                print("Recieved response from gateway:", decrypted_message)
+                main(message)
+            except:
+                print("No message recieved")
 
         # If the message type is 9, then it's an authorisaton message
         elif message_type == "9":
@@ -336,16 +427,18 @@ if __name__ == "__main__":
                 if true_hash == True:
                     #new_entry = Bank.addEntry()
                     print("Assume entry added")
-                    #encrypted_message = Bank.encryptMessage()
-                    #message = full_message
-                    #message_sent = Bank.sendToGateway(client_data)
-                    message = client_data.encode()
-                    gateway_socket.send(message)
+                    encrypted_message = Bank.encryptMessage(decrypted_data).encode()
+                    print(decrypted_data)
+                    print(encrypted_message)
+                    gateway_socket.send(encrypted_message)
                     print("Message sent to the gateway")
-                    print("Waiting for response from gateway")
-                    message = gateway_socket.recv(1024).decode()
-                    print("Recieved response from gateway:", message)
-                    main(message)
+                    print("Waiting for response from gateway...")
+                    try:
+                        message = gateway_socket.recv(30000).decode()
+                        print("Recieved response from gateway:", message)
+                        main(message)
+                    except:
+                        print("No response recieved")
                 else:
                     print(False)
             # If the issuing bank and merchant bank are the same and it's this bank, the rest of the verification is done here
@@ -387,8 +480,8 @@ if __name__ == "__main__":
                         Bank.sendDisapproval(client_data, 8081)
                 else:
                     Bank.sendDisapproval(client_data, 8081)
-
-            else: #this is for instances where the merchant bank and issuing bank are different and the request comes from the processor
+            # Check if you need this
+            else: 
                 check_details = BankServer.getCheckDetails(Bank) 
                 hashed_details = BankServer.getHashedDetails(Bank)
                 true_hash = Bank.checkHash(check_details, hashed_details)
@@ -410,6 +503,106 @@ if __name__ == "__main__":
                         sendDisapproval(decrypted_message, 8082)
                 else:
                     sendDisapproval(decyrpted_message, 8082)
+
+        elif message_type == "8":
+            print("Recieved a settlement request")
+            # It checks whether the issuing bank is the same bank the message has been sent. If it isn't, the details are sent to the gateway
+            if issuing_bank != "53981":
+                print("Customer details are not in this bank")
+                # We get the details to be checked and the hash and then check both of them
+                check_details = BankServer.getCheckDetails(Bank) 
+                hashed_details = BankServer.getHashedDetails(Bank)
+                true_hash = Bank.checkHash(check_details, hashed_details)
+                # If the hash is true, then the details are sent to the gateway after being added into the database
+                if true_hash == True:
+                    #new_entry = Bank.addEntry()
+                    print("Assume entry added")
+                    encrypted_data = Bank.encryptMessage(decrypted_data)
+                    print("Encrypted data:", encrypted_data)
+                    message = encrypted_data.encode()
+                    gateway_socket.send(message)
+                    print("Message sent to the gateway")
+                    print("Waiting for response from gateway")
+                    try:
+                        message = gateway_socket.recv(30000).decode()
+                        print("Recieved response from gateway:", message)
+                        main(message)
+                    except:
+                        print("No response recieved")
+                else:
+                    print(False)
+            
+            elif issuing_bank == merchant_bank and issuing_bank == "53981":
+                print("Both customer and merchant are in this bank.\n Direct transfer will take place")
+                check_details = BankServer.getCheckDetails(Bank) 
+                hashed_details = BankServer.getHashedDetails(Bank)
+                true_hash = Bank.checkHash(check_details, hashed_details)
+                if true_hash is True:
+                    # if that is true, the details are checked in the bank
+                    print("The hash is true")
+                    valid_payment = Bank.checkAuthorisedPayments()
+                    if valid_payment is True:
+                        direct_payment = Bank.directFundTransfer()
+                        if direct_payment is True:
+                            Bank.sendApproval(decrypted_message, 8082)
+                        else:
+                            Bank.sendDisapproval(decrypted_message, 8082)
+                    else:
+                        Bank.sendDisapproval(decrypted_message, 8082)
+                else:
+                    Bank.sendDisapproval(decrypted_message, 8082)
+
+            ## RECHECK THIS BASED ON WHICH REQUEST GOES WHERE
+            elif  issuing_bank == "53981": # when the merchant bank and issuing bank are the same, the communication is only between the merchant bank and client.
+                print("Customer details are in this bank")
+                # It checks the details in the message with the hash
+                check_details = BankServer.getCheckDetails(Bank) 
+                hashed_details = BankServer.getHashedDetails(Bank)
+                true_hash = Bank.checkHash(check_details, hashed_details)
+                if true_hash is True:
+                    # if that is true, the details are checked in the bank
+                    print("The hash is true")
+                    valid_payment = Bank.checkAuthorisedPayments()
+                    if valid_payment is True:
+                        funds_transfered = Bank.transferHoldToVisa()
+                        if funds_transfered is True:
+                            encrypted_data = Bank.encryptMessage(client_data)
+                            message = encrypted_data.encode()
+                            gateway_socket.send(message)
+                            print("Message sent to the gateway")
+                            print("Waiting for response from gateway")
+                            message = gateway_socket.recv(30000).decode()
+                            print("Recieved response from gateway:", message)
+                            main(message)
+                        else:
+                            Bank.sendDisapproval(client_data, 8081)
+                    else:
+                        Bank.sendDisapproval(client_data, 8081)
+                else:
+                    Bank.sendDisapproval(client_data, 8081)
+
+        elif message_type == "7":
+            print("Recieved hold transfer message")
+            check_details = BankServer.getCheckDetails(Bank) 
+            hashed_details = BankServer.getHashedDetails(Bank)
+            true_hash = Bank.checkHash(check_details, hashed_details)
+            if true_hash == True:
+                print("The hash is true")
+                valid_details = Bank.checkDetails()   
+                if valid_details == True:
+                    print("The details are valid")
+                    funds_transfered = Bank.transferVisaToMerchant()
+                    if funds_transfered == True:
+                        print("Funds have been transferred, sending approval...")
+                        Bank.sendApproval(client_data, 8081)
+                    else:
+                        Bank.sendDisapproval(client_data, 8082)
+                else:
+                    Bank.sendDisapproval(client_data, 8082)
+            else:
+                Bank.sendDisapproval(client_data, 8082)
+            
+    
     
     main(client_data)
 
