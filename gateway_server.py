@@ -23,11 +23,6 @@ class GatewayServer:
         self.funds_held = False
         self.no_blacklist = False
         self.true_OTP = False
-
-    # This decrypts the message recieved with the gateway's private key
-    def decryptData(message):
-        # This just decrypts the data
-        pass
     
     # The following get the type of message recieved and the IDs of the client and merchant banks along with the details to be checked, the hash and the card no
     def getMessageType(self):
@@ -148,23 +143,53 @@ class GatewayServer:
             # If both the banks exist in the database
         # basically check whether anything is there or not
 
-    def encryptABC():
-        None
-        # encrypts the data with ABCs public key
+    def encryptBankA(self, msg):
+        cipher = ""
+        e = 604710583306877
+        N = 403246574997455042743991405701
 
-    def encryptXYZ():
-        None
-        # encrypts the data with XYZs public key
+        for c in msg:
+            m = ord(c)
+            cipher += str(pow(m, e, N)) + " "
 
+        return cipher
+
+
+    def encryptBankB(self, msg):
+        cipher = ""
+        e = 751530808771457
+        N = 799152948108675269481101450069
+
+        for c in msg:
+            m = ord(c)
+            cipher += str(pow(m, e, N)) + " "
+
+        return cipher
+
+    '''
     # This encrypts messages according to the bank code 
     def encryptMessage(message, bank_code):
-        if bank_code == 0:
-            encrypted_message = encryptXYZ()
-        elif bank_code == 1:
-            encrypted_message = encryptABC()
+        if bank_code == 53981:
+            encrypted_message = self.encryptBankA(message)
+        elif bank_code == 55440:
+            encrypted_message = self.encryptBankB(message)
         else:
             return False
         return encrypted_message
+    '''
+
+    def decryptMessage(cipher):
+        msg = ""
+        d = 420963772587006044991205558799
+        N = 747992601946009934875593562007
+
+        parts = cipher.split()
+        for part in parts:
+            if part:
+                c = int(part)
+                msg += chr(pow(c, d, N))
+
+        return msg
 
     # This sends and authorisation request to the issuing bank
     def sendAuthRequest(self, message, issuing_id):
@@ -190,30 +215,121 @@ class GatewayServer:
         for i in cursor:
             ip = i
         '''
-        if int(issuing_id) == 55440:
-            self.sendMessage(message, 8086, "192.168.0.22")
-        elif int(issuing_id) == 53981:
-            self.sendMessage(message, 8082, "192.168.0.22")
+        
 
         #sendMessage(message, issuing_id, socket) should be used but for testing i'm using the one below
         #sendMessage(message, socket, ip)
+        if int(issuing_id) == 55440:
+            print("original (to be enc):",message)
+            encrypted_message = self.encryptBankB(message)
+            print("encrypted:",encrypted_message)
+            self.sendMessage(encrypted_message, 8086, "192.168.0.100")
+        elif int(issuing_id) == 53981:
+            encrypted_message = self.encryptBankA(message)
+            self.sendMessage(encrypted_message, 8082, "192.168.0.100")
 
     # This sends a settlement request to the issuing bank
     def sendSettleRequest(self, message, issuing_id):
-        message = "8" + str(message)
-        encrypted_message = encryptMessage(message, merchant_id)
+        '''
+        cursor.execute(
+            """
+            SELECT SocketID
+            FROM Banks_Table
+            WHERE BankID = ISSUING_ID
+            """
+        )
+        for i in cursor:
+            socket = i
+        
+        cursor.execute(
+            """
+            SELECT IP
+            FROM Banks_Table
+            WHERE BankID = ISSUING_ID
+            """
+        )
+        for i in cursor:
+            ip = i
+        '''
+        if int(issuing_id) == 55440:
+            print("original (to be enc):",message)
+            encrypted_message = self.encryptBankB(message)
+            print("encrypted:",encrypted_message)
+            self.sendMessage(encrypted_message, 8086, "192.168.0.100")
+        elif int(issuing_id) == 53981:
+            encrypted_message = self.encryptBankA(message)
+            self.sendMessage(encrypted_message, 8082, "192.168.0.100")
 
+        #sendMessage(message, issuing_id, socket) should be used but for testing i'm using the one below
+        #sendMessage(message, socket, ip)
+    
+    def sendHoldConfirmation(self, message, merchant_id):
+        #encrypted_message = encryptMessage(message, merchant_id)
+        '''
+        cursor.execute(
+            """
+            SELECT SocketID
+            FROM Banks_Table
+            WHERE BankID = ISSUING_ID
+            """
+        )
+        for i in cursor:
+            socket = i
+        
+        cursor.execute(
+            """
+            SELECT IP
+            FROM Banks_Table
+            WHERE BankID = ISSUING_ID
+            """
+        )
+        for i in cursor:
+            ip = i
+        '''
+        if int(merchant_id) == 55440:
+            print("original (to be enc):",message)
+            encrypted_message = self.encryptBankB(message)
+            print("encrypted:",encrypted_message)
+            self.sendMessage(encrypted_message, 8086, "192.168.0.100")
+        elif int(merchant_id) == 53981:
+            print("original (to be enc):",message)
+            encrypted_message = self.encryptBankA(message)
+            print("encrypted:",encrypted_message)
+            self.sendMessage(encrypted_message, 8082, "192.168.0.100")
+
+
+    def sendApproval(self, message, merchant_id):
+        if int(merchant_id) == 55440:
+            print("original (to be enc):",message)
+            encrypted_message = self.encryptBankB(message)
+            print("encrypted:",encrypted_message)
+            data = encrypted_message.encode()
+            bankb_connection_socket.send(data)
+            #self.sendMessage(encrypted_message, 8086, "192.168.0.100")
+        elif int(merchant_id) == 53981:
+            print("original (to be enc):",message)
+            encrypted_message = self.encryptBankA(message)
+            print("encrypted:",encrypted_message)
+            data = encrypted_message.encode()
+            banka_connection_socket.send(data)
+            #self.sendMessage(encrypted_message, 8082, "192.168.0.100")
+
+    '''
     # This sends an approval message to the merchant bank
     def sendApproval(self, message, merchant_id):
-        data = message.encode()
+        encrypted_message = self.encryptMessage(message)
+        data = encrypted_message.encode()
         if int(merchant_id) == 53981:
+            print("sending to a")
             banka_connection_socket.send(data)
         elif int(merchant_id) == 55440:
             bankb_connection_socket.send(data)
+    '''
 
     # This sends a disapproval message to the merchant bank
     def sendDisapproval(self, message, merchant_id):
-        data = message.encode()
+        encrypted_message = self.encryptMessage(merchant_id)
+        data = encrypted_message.encode()
         if int(merchant_id) == 53981:
             banka_connection_socket.send(data)
         elif int(merchant_id) == 55440:
@@ -223,31 +339,20 @@ class GatewayServer:
     def sendMessage(self, message, socket_no, ip):
         # adjust this to include multiple banks
         data = message.encode()
-        bankb_connection_socket.send(data)
+        if socket_no == 8086:
+            bankb_connection_socket.send(data)
+        elif socket_no == 8082:
+            banka_connection_socket.send(data)
         print(data)
 
 
 if __name__ == "__main__":
     print("This is the gateway server")
     # Getting data from the mercahnt bank and sending it to the issuing bank
-    '''
-    banka_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    bankb_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    banka_socket.bind(("192.168.0.22", 8082))
-    bankb_socket.bind(("192.168.0.22", 8086))
-    banka_socket.listen()
-    print("Waiting for bank A socket...")
-    connection_socket, address = banka_socket.accept()
-    print("Bank A connected")
-    bankb_socket.listen()
-    print("Waiting for bank B socket...")
-    connection_socket, address = bankb_socket.accept()
-    print("Bank B connected")
-    '''
 
     # this connects the server to Bank B
     bankb_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    bankb_socket.bind(("192.168.0.22", 8086))
+    bankb_socket.bind(("192.168.0.100", 8086))
     bankb_socket.listen()
     print("Waiting for socket...")
     bankb_connection_socket, address = bankb_socket.accept()
@@ -255,14 +360,14 @@ if __name__ == "__main__":
 
     # this connects the server to Bank A
     banka_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    banka_socket.bind(("192.168.0.22", 8082))
+    banka_socket.bind(("192.168.0.100", 8082))
     banka_socket.listen()
     print("Waiting for socket...")
     banka_connection_socket, address = banka_socket.accept()
     print("Client connected")
 
     # The program waits for bank A to send a message
-    message= banka_connection_socket.recv(1024).decode()
+    message= banka_connection_socket.recv(30000).decode()
 
     #message_b = bankb_socket.recv(1024).decode()
     #if len(message_a) > len(message_b):
@@ -276,8 +381,10 @@ if __name__ == "__main__":
     # The message recieved is given as a parameter to the recursive function below
     def main(message):
         # This gets all the nessacary variables for the function
-        message_recieved = message
-        gateway = GatewayServer(message)
+        decrypted_message = GatewayServer.decryptMessage(message) # Find me
+        print("decrypted:",decrypted_message)
+        print("length:", len(message))
+        gateway = GatewayServer(decrypted_message)
         message_type = gateway.getMessageType()
         print(message_type)
         issuing_bank = gateway.getIssuingBank()
@@ -304,30 +411,57 @@ if __name__ == "__main__":
                     print("Recieved authorisation maessage")
                     #gateway.addEntry() # Assume the entry was added
                     print("Assume Entry Added")
-                    gateway.sendAuthRequest(message, issuing_bank)
-                    print("Waiting for response from Bank B: ")
-                    message = bankb_connection_socket.recv(1024).decode()
-                    print("Recieved response from Bank B: ", message)
+                    gateway.sendAuthRequest(decrypted_message, issuing_bank)
+                    # USE ERROR HANDLING AND CHECK IF A CONNECTION EXIST. DO THE SAME FOR MESSAGE_TYPE = 8
+                    print("Waiting for response from Bank B... ")
+                #try:
+                    message = bankb_connection_socket.recv(30000).decode()
+                    print("Recieved response from gateway:", message)
                     main(message)
+                #except:
+                    print("No response recieved")
                 # This is settlement
                 elif message_type == '8':
                     #gateway.addEntry() # Assume the entry was added
                     print("Assume Entry Added for settlement")
-                    #gateway.sendAuthRequest(message, issuing_bank)
+                    print("Decrypted message:",decrypted_message)
+                    print("Issuing bank:", issuing_bank, "type:", type(issuing_bank))
+                    gateway.sendSettleRequest(decrypted_message, issuing_bank)
+                    print("Waiting for response from Bank B... ")
+                    #try:
+                    message = bankb_connection_socket.recv(30000).decode()
+                    print("Recieved response from Bank B: ", message)
+                    print("length:", len(message))
+                    main(message)
+                    #except:
+                    #    print("No response recieved")
                 # This is approval
+                elif message_type == '7':
+                    print("This is a hold confirmation")
+                    print("Assume entry added")
+                    gateway.sendHoldConfirmation(decrypted_message, merchant_bank)
+                    print("Waiting for response from Bank A... ")
+                    try:
+                        message = banka_connection_socket.recv(30000).decode()
+                        print("Recieved response from Bank A: ", message)
+                        main(message)
+                    except:
+                        print("No response recieved")
                 elif message_type == '1':
                     print("Recieved an approval message")
-                    gateway.sendApproval(message_recieved, merchant_bank)
+                    print("merchant:", merchant_bank)
+                    gateway.sendApproval(decrypted_message, merchant_bank)
                     print("Sent approval")
+                    ## How to always keep listening for approval and disapproval
                 # This is dissaproval
                 else:
                     print("Recieved disapproval message")
-                    gateway.sendDisapproval(message_recieved, merchant_bank)
+                    gateway.sendDisapproval(decrypted_message, merchant_bank)
                     print("Sent dissaproval message")
             else:
-                gateway.sendDisapproval(message, merchant_bank)
+                gateway.sendDisapproval(decrypted_message, merchant_bank)
         else:
-            gateway.sendDisapproval(message, merchant_bank)
+            gateway.sendDisapproval(decrypted_message, merchant_bank)
     
     main(message)
 
